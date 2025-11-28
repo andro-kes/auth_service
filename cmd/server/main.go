@@ -37,12 +37,12 @@ func main() {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	pool, err := NewPool(ctx)
-	defer func() {
-		cancel()
-		pool.Close()
-		logger.Sync()
-	}()
+	if err != nil {
+		logger.Logger().Fatal("Error by creating pool", zap.Error(err))
+	}
 
 	rpcAuth := rpc.NewAuthServer(ctx, pool)
 	grpcServer := grpc.NewServer()
@@ -59,6 +59,8 @@ func main() {
 	<-shutdown
 
 	grpcServer.GracefulStop()
+	pool.Close()
+	logger.Sync()
 }
 
 func NewPool(ctx context.Context) (*pgxpool.Pool, error) {
