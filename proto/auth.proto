@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package auth;
+
+option go_package = "github.com/andro-kes/auth/proto;proto";
+
+service AuthService {
+    rpc Login(Request) returns (Response);
+    rpc Register(Request) returns (Status);
+}
+
+message Request {
+    string username = 1;
+    string password = 2;
+}
+
+message Response {
+    string access_token = 1;
+    string refresh_token = 2;
+}
+
+message Status {
+    string status = 1;
+}
