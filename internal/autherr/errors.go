@@ -99,15 +99,19 @@ var (
 	ErrLoginUser  = New("invalid credentials", codes.Unauthenticated)
 
 	// token related
-	ErrInvalidToken = New("invalid token", codes.Unauthenticated)
-	ErrTokenExpired = New("token expired", codes.Unauthenticated)
-	ErrNoToken      = New("no token provided", codes.Unauthenticated)
+	ErrInvalidToken    = New("invalid token", codes.Unauthenticated)
+	ErrTokenExpired    = New("token expired", codes.Unauthenticated)
+	ErrNoToken         = New("no token provided", codes.Unauthenticated)
+	ErrTokenGeneration = New("failed to generate token", codes.Internal)
+
+	// storage related
+	ErrStorageError = New("storage error", codes.Internal)
 
 	// authorization / access
 	ErrForbidden = New("forbidden", codes.PermissionDenied)
 	ErrNotFound  = New("not found", codes.NotFound)
 
 	// generic
-	ErrBadRequest = New("bad request", codes.InvalidArgument)
+	ErrBadRequest   = New("bad request", codes.InvalidArgument)
 	ErrHashPassword = New("failed to hash password", codes.Internal)
 )

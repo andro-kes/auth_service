@@ -44,7 +44,7 @@ func (as *AuthServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Toke
 	}
 	logger.Logger().Info("User logged in", zap.String("username", user.Username))
 
-	accessToken, refreshToken, accessExp, refreshExp, err := as.TokenService.GenerateTokens(user.ID)
+	accessToken, refreshToken, accessExp, refreshExp, err := as.TokenService.GenerateTokens(ctx, user.ID)
 	if err != nil {
 		logger.Logger().Error("Failed to generate tokens", zap.Error(err))
 		return nil, autherr.ErrBadRequest
@@ -54,11 +54,11 @@ func (as *AuthServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Toke
 	refreshTTL := time.Until(refreshExp)
 
 	return &pb.TokenResponse{
-		AccessToken: accessToken,
-		RefreshToken: refreshToken,
-		AccessExpiresIn: durationpb.New(accessTTL),
-		RefreshExpiresIn:  durationpb.New(refreshTTL),
-		UserId: user.ID,
+		AccessToken:      accessToken,
+		RefreshToken:     refreshToken,
+		AccessExpiresIn:  durationpb.New(accessTTL),
+		RefreshExpiresIn: durationpb.New(refreshTTL),
+		UserId:           user.ID,
 	}, nil
 }
 
@@ -72,25 +72,25 @@ func (as *AuthServer) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 }
 
 func (as *AuthServer) Refresh(ctx context.Context, req *pb.RefreshRequest) (resp *pb.TokenResponse, err error) {
-	newAccess, newRefresh, accessExp, refreshExp, err := as.TokenService.RotateRefresh(req.RefreshToken, req.ExpectedUserId)
+	newAccess, newRefresh, accessExp, refreshExp, err := as.TokenService.RotateRefresh(ctx, req.RefreshToken, req.ExpectedUserId)
 	if err != nil {
 		return nil, err
 	}
 
 	resp = &pb.TokenResponse{
-		AccessToken: newAccess,
-		RefreshToken: newRefresh,
-		AccessExpiresIn: durationpb.New(time.Until(accessExp)),
+		AccessToken:      newAccess,
+		RefreshToken:     newRefresh,
+		AccessExpiresIn:  durationpb.New(time.Until(accessExp)),
 		RefreshExpiresIn: durationpb.New(time.Until(refreshExp)),
+		UserId:           req.ExpectedUserId,
 	}
 
 	return resp, nil
 }
 
-// Example usage inside a gRPC Revoke handler:
-// - receive raw refresh token (or user+device) and revoke it in Redis
+// Revoke invalidates the provided refresh token, revoking access for the associated user.
 func (as *AuthServer) Revoke(ctx context.Context, req *pb.RevokeRequest) (*pb.Status, error) {
-	if err := as.TokenService.RevokeRefreshByRaw(req.RefreshToken); err != nil {
+	if err := as.TokenService.RevokeRefreshByRaw(ctx, req.RefreshToken); err != nil {
 		return &pb.Status{Status: "Fail"}, err
 	}
 	return &pb.Status{Status: "Success"}, nil

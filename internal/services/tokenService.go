@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"os"
 	"time"
 
@@ -19,7 +20,6 @@ type TokenService struct {
 	accessTTL  time.Duration
 	refreshTTL time.Duration
 	rdb        *redis.Client
-	ctx        context.Context
 }
 
 type tokenClaims struct {
@@ -29,6 +29,9 @@ type tokenClaims struct {
 }
 
 func NewTokenService(secret string, accessTTL, refreshTTL time.Duration) (*TokenService, error) {
+	if len(secret) < 32 {
+		return nil, autherr.ErrBadRequest.WithMessage("secret must be at least 32 bytes")
+	}
 	addr := os.Getenv("REDIS_ADDR")
 	if addr == "" {
 		addr = "localhost:6379"
@@ -36,14 +39,13 @@ func NewTokenService(secret string, accessTTL, refreshTTL time.Duration) (*Token
 	rdb := redis.NewClient(&redis.Options{Addr: addr})
 	ctx := context.Background()
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		return nil, autherr.ErrBadRequest.WithMessage(err.Error())
+		return nil, autherr.ErrStorageError.WithMessage(err.Error())
 	}
 	return &TokenService{
 		secret:     []byte(secret),
 		accessTTL:  accessTTL,
 		refreshTTL: refreshTTL,
 		rdb:        rdb,
-		ctx:        ctx,
 	}, nil
 }
 
@@ -51,12 +53,12 @@ func (s *TokenService) Close() error {
 	return s.rdb.Close()
 }
 
-func (s *TokenService) GenerateTokens(userID string) (accessToken, refreshToken string, accessExp, refreshExp time.Time, err error) {
+func (s *TokenService) GenerateTokens(ctx context.Context, userID string) (accessToken, refreshToken string, accessExp, refreshExp time.Time, err error) {
 	now := time.Now().UTC()
 	accessExp = now.Add(s.accessTTL)
 	atJti, err := randomHex(16)
 	if err != nil {
-		return "", "", time.Time{}, time.Time{}, autherr.ErrCreateUser.WithMessage(err.Error())
+		return "", "", time.Time{}, time.Time{}, autherr.ErrTokenGeneration.WithMessage(err.Error())
 	}
 	accessClaims := tokenClaims{
 		UserID: userID,
@@ -71,25 +73,25 @@ func (s *TokenService) GenerateTokens(userID string) (accessToken, refreshToken 
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
 	signedAccess, err := at.SignedString(s.secret)
 	if err != nil {
-		return "", "", time.Time{}, time.Time{}, autherr.ErrCreateUser.WithMessage(err.Error())
+		return "", "", time.Time{}, time.Time{}, autherr.ErrTokenGeneration.WithMessage(err.Error())
 	}
 
 	refreshExp = now.Add(s.refreshTTL)
 	rawRefresh, err := randomBase64(64)
 	if err != nil {
-		return "", "", time.Time{}, time.Time{}, autherr.ErrCreateUser.WithMessage(err.Error())
+		return "", "", time.Time{}, time.Time{}, autherr.ErrTokenGeneration.WithMessage(err.Error())
 	}
 	refreshHash := sha256Hex(rawRefresh)
 	key := redisKey(refreshHash)
 
-	if err := s.rdb.HSet(s.ctx, key, map[string]any{
+	if err := s.rdb.HSet(ctx, key, map[string]any{
 		"user_id":   userID,
 		"issued_at": now.Unix(),
 	}).Err(); err != nil {
-		return "", "", time.Time{}, time.Time{}, autherr.ErrCreateUser.WithMessage(err.Error())
+		return "", "", time.Time{}, time.Time{}, autherr.ErrStorageError.WithMessage(err.Error())
 	}
-	if err := s.rdb.Expire(s.ctx, key, s.refreshTTL).Err(); err != nil {
-		return "", "", time.Time{}, time.Time{}, autherr.ErrCreateUser.WithMessage(err.Error())
+	if err := s.rdb.Expire(ctx, key, s.refreshTTL).Err(); err != nil {
+		return "", "", time.Time{}, time.Time{}, autherr.ErrStorageError.WithMessage(err.Error())
 	}
 
 	return signedAccess, rawRefresh, accessExp, refreshExp, nil
@@ -106,22 +108,22 @@ func (s *TokenService) ValidateAccess(tokenStr string) (string, error) {
 	return claims.UserID, nil
 }
 
-func (s *TokenService) ValidateRefresh(rawRefresh string) (string, error) {
+func (s *TokenService) ValidateRefresh(ctx context.Context, rawRefresh string) (string, error) {
 	h := sha256Hex(rawRefresh)
 	key := redisKey(h)
-	exists, err := s.rdb.Exists(s.ctx, key).Result()
+	exists, err := s.rdb.Exists(ctx, key).Result()
 	if err != nil {
-		return "", autherr.ErrCreateUser.WithMessage(err.Error())
+		return "", autherr.ErrStorageError.WithMessage(err.Error())
 	}
 	if exists == 0 {
 		return "", autherr.ErrInvalidToken
 	}
-	userID, err := s.rdb.HGet(s.ctx, key, "user_id").Result()
+	userID, err := s.rdb.HGet(ctx, key, "user_id").Result()
 	if err == redis.Nil || userID == "" {
 		return "", autherr.ErrInvalidToken
 	}
 	if err != nil {
-		return "", autherr.ErrCreateUser.WithMessage(err.Error())
+		return "", autherr.ErrStorageError.WithMessage(err.Error())
 	}
 	return userID, nil
 }
@@ -134,14 +136,14 @@ local uid = redis.call("HGET", KEYS[1], "user_id")
 if ARGV[1] ~= "" and uid ~= ARGV[1] then
   return {err="user_mismatch"}
 end
-redis.call("HSET", KEYS[2], "user_id", ARGV[1], "device_id", ARGV[2], "issued_at", ARGV[3])
-redis.call("EXPIRE", KEYS[2], tonumber(ARGV[4]))
+redis.call("HSET", KEYS[2], "user_id", ARGV[1], "issued_at", ARGV[2])
+redis.call("EXPIRE", KEYS[2], tonumber(ARGV[3]))
 redis.call("DEL", KEYS[1])
 return {ok="ok"}
 `
 
-func (s *TokenService) RotateRefresh(oldRaw string, expectedUserID string) (newAccess, newRefresh string, accessExp, refreshExp time.Time, err error) {
-	userID, err := s.ValidateRefresh(oldRaw)
+func (s *TokenService) RotateRefresh(ctx context.Context, oldRaw string, expectedUserID string) (newAccess, newRefresh string, accessExp, refreshExp time.Time, err error) {
+	userID, err := s.ValidateRefresh(ctx, oldRaw)
 	if err != nil {
 		return "", "", time.Time{}, time.Time{}, err
 	}
@@ -150,7 +152,7 @@ func (s *TokenService) RotateRefresh(oldRaw string, expectedUserID string) (newA
 	}
 
 	now := time.Now().UTC()
-	newAccess, newRefresh, accessExp, refreshExp, err = s.GenerateTokens(userID)
+	newAccess, newRefresh, accessExp, refreshExp, err = s.GenerateTokens(ctx, userID)
 	if err != nil {
 		return "", "", time.Time{}, time.Time{}, err
 	}
@@ -162,10 +164,10 @@ func (s *TokenService) RotateRefresh(oldRaw string, expectedUserID string) (newA
 	issuedAt := now.Unix()
 	ttl := int(s.refreshTTL.Seconds())
 
-	cmd := s.rdb.Eval(s.ctx, rotateScript, []string{oldKey, newKey}, userID, issuedAt, ttl)
+	cmd := s.rdb.Eval(ctx, rotateScript, []string{oldKey, newKey}, userID, issuedAt, ttl)
 	if cmd.Err() != nil {
 		// rollback attempt: delete newKey if created
-		_ = s.rdb.Del(s.ctx, newKey).Err()
+		_ = s.rdb.Del(ctx, newKey).Err()
 		// map specific errors
 		if cmd.Err().Error() == "ERR old_not_found" || cmd.Err().Error() == "old_not_found" {
 			return "", "", time.Time{}, time.Time{}, autherr.ErrInvalidToken
@@ -173,18 +175,18 @@ func (s *TokenService) RotateRefresh(oldRaw string, expectedUserID string) (newA
 		if cmd.Err().Error() == "ERR user_mismatch" || cmd.Err().Error() == "user_mismatch" {
 			return "", "", time.Time{}, time.Time{}, autherr.ErrInvalidToken
 		}
-		return "", "", time.Time{}, time.Time{}, autherr.ErrCreateUser.WithMessage(cmd.Err().Error())
+		return "", "", time.Time{}, time.Time{}, autherr.ErrStorageError.WithMessage(cmd.Err().Error())
 	}
 
 	return newAccess, newRefresh, accessExp, refreshExp, nil
 }
 
-func (s *TokenService) RevokeRefreshByRaw(raw string) error {
+func (s *TokenService) RevokeRefreshByRaw(ctx context.Context, raw string) error {
 	h := sha256Hex(raw)
 	key := redisKey(h)
-	_, err := s.rdb.Del(s.ctx, key).Result()
+	_, err := s.rdb.Del(ctx, key).Result()
 	if err != nil {
-		return autherr.ErrCreateUser.WithMessage(err.Error())
+		return autherr.ErrStorageError.WithMessage(err.Error())
 	}
 	return nil
 }
@@ -197,7 +199,7 @@ func (s *TokenService) parseAndMapErr(tokenStr string) (*tokenClaims, error) {
 		return s.secret, nil
 	})
 	if err != nil {
-		if err == jwt.ErrTokenExpired {
+		if errors.Is(err, jwt.ErrTokenExpired) {
 			return nil, autherr.ErrTokenExpired
 		}
 		return nil, autherr.ErrInvalidToken
