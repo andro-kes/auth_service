@@ -3,11 +3,11 @@ package services
 import (
 	"context"
 
-	"github.com/andro-kes/auth/internal/autherr"
-	"github.com/andro-kes/auth/internal/logger"
-	"github.com/andro-kes/auth/internal/models"
-	"github.com/andro-kes/auth/internal/repo"
-	"github.com/andro-kes/auth/internal/repo/db"
+	"github.com/andro-kes/auth_service/internal/autherr"
+	"github.com/andro-kes/auth_service/internal/logger"
+	"github.com/andro-kes/auth_service/internal/models"
+	"github.com/andro-kes/auth_service/internal/repo"
+	"github.com/andro-kes/auth_service/internal/repo/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
@@ -48,4 +48,17 @@ func (us *UserService) Register(ctx context.Context, username, password string) 
 		logger.Logger().Info("User created", zap.String("user_id", user.ID))
 		return nil
 	})
+}
+
+func (us *UserService) Login(ctx context.Context, username, password string) (*models.User, error) {
+	user, err := us.Repo.FindByUsername(ctx, username)
+	if err != nil {
+		return nil, autherr.ErrNotFound
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return nil, autherr.ErrLoginUser
+	}
+
+	return user, nil
 }

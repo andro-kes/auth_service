@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/andro-kes/auth/internal/logger"
-	"github.com/andro-kes/auth/internal/rpc"
-	pb "github.com/andro-kes/auth/proto"
+	"github.com/andro-kes/auth_service/internal/logger"
+	"github.com/andro-kes/auth_service/internal/rpc"
+	pb "github.com/andro-kes/auth_service/proto"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -44,7 +44,10 @@ func main() {
 		logger.Logger().Fatal("Error by creating pool", zap.Error(err))
 	}
 
-	rpcAuth := rpc.NewAuthServer(ctx, pool)
+	rpcAuth, err := rpc.NewAuthServer(ctx, pool)
+	if err != nil {
+		logger.Logger().Fatal("Error by creating auth server", zap.Error(err))
+	}
 	grpcServer := grpc.NewServer()
 	pb.RegisterAuthServiceServer(grpcServer, rpcAuth)
 
