@@ -82,6 +82,7 @@ func (as *AuthServer) Refresh(ctx context.Context, req *pb.RefreshRequest) (resp
 		RefreshToken: newRefresh,
 		AccessExpiresIn: durationpb.New(time.Until(accessExp)),
 		RefreshExpiresIn: durationpb.New(time.Until(refreshExp)),
+		UserId: req.ExpectedUserId,
 	}
 
 	return resp, nil
