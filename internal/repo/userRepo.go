@@ -3,13 +3,14 @@ package repo
 import (
 	"context"
 
-	"github.com/andro-kes/auth/internal/models"
-	"github.com/andro-kes/auth/internal/repo/db"
+	"github.com/andro-kes/auth_service/internal/models"
+	"github.com/andro-kes/auth_service/internal/repo/db"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type UserRepo interface {
 	Create(ctx context.Context, q db.Querier, user *models.User) error
+	FindByUsername(ctx context.Context, username string) (*models.User, error)
 }
 
 type userRepo struct {
@@ -44,4 +45,22 @@ func (ur *userRepo) Create(ctx context.Context, q db.Querier, user *models.User)
 	}
 
 	return nil
+}
+
+func (ur *userRepo) FindByUsername(ctx context.Context, username string) (*models.User, error) {
+	sb := ur.SelectBuilder.
+		Select("id", "username", "password").
+		From("users").
+		Where("username = ?", username).
+		Limit(1)
+
+	row := sb.QueryRow()
+
+	var user models.User
+	err := row.Scan(&user.ID, &user.Username, &user.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
 }
