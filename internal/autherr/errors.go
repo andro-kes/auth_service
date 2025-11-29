@@ -110,4 +110,5 @@ var (
 	// generic
 	ErrBadRequest = New("bad request", codes.InvalidArgument)
 	ErrHashPassword = New("failed to hash password", codes.Internal)
+	ErrStorage = New("storage error", codes.Internal)
 )
