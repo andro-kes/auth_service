@@ -184,7 +184,7 @@ func (s *TokenService) RevokeRefreshByRaw(raw string) error {
 	key := redisKey(h)
 	_, err := s.rdb.Del(s.ctx, key).Result()
 	if err != nil {
-		return autherr.ErrCreateUser.WithMessage(err.Error())
+		return autherr.ErrStorageError.WithMessage(err.Error())
 	}
 	return nil
 }
