@@ -2,9 +2,12 @@ package repo
 
 import (
 	"context"
+	"errors"
 
+	"github.com/andro-kes/auth_service/internal/autherr"
 	"github.com/andro-kes/auth_service/internal/models"
 	"github.com/andro-kes/auth_service/internal/repo/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -14,23 +17,17 @@ type UserRepo interface {
 }
 
 type userRepo struct {
-	SelectBuilder *db.SelectBuilder
-	UpdateBuilder *db.UpdateBuilder
-	InsertBuilder *db.InsertBuilder
-	DeleteBuilder *db.DeleteBuilder
+	pool *pgxpool.Pool
 }
 
 func NewUserRepo(ctx context.Context, pool *pgxpool.Pool) UserRepo {
 	return &userRepo{
-		SelectBuilder: db.NewSelectBuilder(ctx, pool),
-		UpdateBuilder: db.NewUpdateBuilder(ctx, pool),
-		InsertBuilder: db.NewInsertBuilder(ctx, pool),
-		DeleteBuilder: db.NewDeleteBuilder(ctx, pool),
+		pool: pool,
 	}
 }
 
 func (ur *userRepo) Create(ctx context.Context, q db.Querier, user *models.User) error {
-	ib := ur.InsertBuilder.
+	ib := db.NewInsertBuilder(ctx, ur.pool).
 		Into("users").
 		Columns("id", "username", "password").
 		Values(user.ID, user.Username, user.Password)
@@ -48,7 +45,7 @@ func (ur *userRepo) Create(ctx context.Context, q db.Querier, user *models.User)
 }
 
 func (ur *userRepo) FindByUsername(ctx context.Context, username string) (*models.User, error) {
-	sb := ur.SelectBuilder.
+	sb := db.NewSelectBuilder(ctx, ur.pool).
 		Select("id", "username", "password").
 		From("users").
 		Where("username = ?", username).
@@ -59,6 +56,9 @@ func (ur *userRepo) FindByUsername(ctx context.Context, username string) (*model
 	var user models.User
 	err := row.Scan(&user.ID, &user.Username, &user.Password)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, autherr.ErrNotFound
+		}
 		return nil, err
 	}
 

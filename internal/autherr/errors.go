@@ -104,7 +104,7 @@ var (
 	ErrNoToken         = New("no token provided", codes.Unauthenticated)
 	ErrTokenGeneration = New("failed to generate token", codes.Internal)
 
-	// storage related
+	// storage related (single canonical value)
 	ErrStorageError = New("storage error", codes.Internal)
 
 	// authorization / access
@@ -114,5 +114,4 @@ var (
 	// generic
 	ErrBadRequest   = New("bad request", codes.InvalidArgument)
 	ErrHashPassword = New("failed to hash password", codes.Internal)
-	ErrStorage = New("storage error", codes.Internal)
 )

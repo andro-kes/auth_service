@@ -27,7 +27,8 @@ func NewAuthServer(ctx context.Context, pool *pgxpool.Pool) (*AuthServer, error)
 		time.Hour * 24 * 7,
 	)
 	if err != nil {
-		return nil, autherr.ErrBadRequest
+		// return the actual error so callers see the real cause
+		return nil, err
 	}
 
 	return &AuthServer{

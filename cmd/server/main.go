@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/andro-kes/auth_service/internal/logger"
+	"github.com/andro-kes/auth_service/internal/migrate"
 	"github.com/andro-kes/auth_service/internal/rpc"
 	pb "github.com/andro-kes/auth_service/proto"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,32 +29,44 @@ func main() {
 		_, _ = os.Stderr.WriteString("failed to init logger: " + err.Error())
 		os.Exit(1)
 	}
-	
-	// gRPC server init
-	addr := os.Getenv("GRPC_ADDR")
-	listen, err := net.Listen("tcp", addr)
-	if err != nil {
-		logger.Logger().Fatal("Cannot listen tcp", zap.Error(err))
+	zl := logger.Logger()
+
+	// migrate
+	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		zl.Fatal("DB_URL must be set")
 	}
 
+	if err := migrate.AutoMigrate(dbURL, zl); err != nil {
+		zl.Fatal("migrations failed", zap.Error(err))
+	}
+
+	// pool init
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	pool, err := NewPool(ctx)
 	if err != nil {
-		logger.Logger().Fatal("Error by creating pool", zap.Error(err))
+		zl.Fatal("Error by creating pool", zap.Error(err))
+	}
+	
+	// gRPC server init
+	addr := os.Getenv("GRPC_ADDR")
+	listen, err := net.Listen("tcp", addr)
+	if err != nil {
+		zl.Fatal("Cannot listen tcp", zap.Error(err))
 	}
 
 	rpcAuth, err := rpc.NewAuthServer(ctx, pool)
 	if err != nil {
-		logger.Logger().Fatal("Error by creating auth server", zap.Error(err))
+		zl.Fatal("Error by creating auth server", zap.Error(err))
 	}
 	grpcServer := grpc.NewServer()
 	pb.RegisterAuthServiceServer(grpcServer, rpcAuth)
 
 	go func() {
 		if err := grpcServer.Serve(listen); err != nil {
-			logger.Logger().Fatal("Error by serving", zap.Error(err))
+			zl.Fatal("Error by serving", zap.Error(err))
 		}
 	}()
 

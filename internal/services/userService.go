@@ -53,7 +53,11 @@ func (us *UserService) Register(ctx context.Context, username, password string) 
 func (us *UserService) Login(ctx context.Context, username, password string) (*models.User, error) {
 	user, err := us.Repo.FindByUsername(ctx, username)
 	if err != nil {
-		return nil, autherr.ErrNotFound
+		if err == autherr.ErrNotFound {
+			return nil, autherr.ErrNotFound
+		}
+		logger.Logger().Error("Failed to get user by username", zap.Error(err))
+		return nil, autherr.ErrStorageError.WithMessage(err.Error())
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
