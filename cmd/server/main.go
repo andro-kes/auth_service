@@ -23,22 +23,22 @@ func main() {
 		Level:        "debug",
 		Encoding:     "console",
 		FileRotation: false,
-		Development: true,
+		Development:  true,
 	}
 	if err := logger.Init(cfg); err != nil {
 		_, _ = os.Stderr.WriteString("failed to init logger: " + err.Error())
-		os.Exit(1)
+		panic("failed to init logger")
 	}
 	zl := logger.Logger()
+	defer logger.Sync()
 
 	// migrate
 	dbURL := os.Getenv("DB_URL")
 	if dbURL == "" {
-		zl.Fatal("DB_URL must be set")
+		panic("DB_URL must be set")
 	}
-
 	if err := migrate.AutoMigrate(dbURL, zl); err != nil {
-		zl.Fatal("migrations failed", zap.Error(err))
+		panic("migrations error: " + err.Error())
 	}
 
 	// pool init
@@ -47,36 +47,45 @@ func main() {
 
 	pool, err := NewPool(ctx)
 	if err != nil {
-		zl.Fatal("Error by creating pool", zap.Error(err))
+		panic("failed to create pool: " + err.Error())
 	}
-	
+	defer pool.Close()
+
 	// gRPC server init
 	addr := os.Getenv("GRPC_ADDR")
+	if addr == "" {
+		panic("GRPC_ADDR must be set")
+	}
 	listen, err := net.Listen("tcp", addr)
 	if err != nil {
-		zl.Fatal("Cannot listen tcp", zap.Error(err))
+		panic("listen error: " + err.Error())
 	}
 
 	rpcAuth, err := rpc.NewAuthServer(ctx, pool)
 	if err != nil {
-		zl.Fatal("Error by creating auth server", zap.Error(err))
+		panic("error creating auth server: " + err.Error())
 	}
 	grpcServer := grpc.NewServer()
 	pb.RegisterAuthServiceServer(grpcServer, rpcAuth)
 
+	serveErr := make(chan error, 1)
 	go func() {
 		if err := grpcServer.Serve(listen); err != nil {
-			zl.Fatal("Error by serving", zap.Error(err))
+			serveErr <- err
 		}
 	}()
 
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
-	<-shutdown
+
+	select {
+	case sig := <-shutdown:
+		zl.Info("shutdown signal received", zap.String("signal", sig.String()))
+	case err := <-serveErr:
+		zl.Error("gRPC server error", zap.Error(err))
+	}
 
 	grpcServer.GracefulStop()
-	pool.Close()
-	logger.Sync()
 }
 
 func NewPool(ctx context.Context) (*pgxpool.Pool, error) {
