@@ -54,7 +54,7 @@ func (tur *testUserRepo) FindByUsername(ctx context.Context, username string) (*
 }
 
 func TestRegister(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	repo := &testUserRepo{}
 
 	us := &UserService{
@@ -81,7 +81,7 @@ func TestRegister(t *testing.T) {
 }
 
 func TestRegisterCreateFails(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	repo := &testUserRepo{createError: autherr.ErrCreateUser}
 	us := &UserService{
 		Repo: repo,
@@ -99,7 +99,7 @@ func TestRegisterCreateFails(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	repo := &testUserRepo{}
 	us := &UserService{
 		Repo: repo,
@@ -116,7 +116,7 @@ func TestLogin(t *testing.T) {
 }
 
 func TestLoginFail(t *testing.T) {
-	ctx := t.Context()
+	ctx := context.Background()
 	repo := &testUserRepo{notFoundError: autherr.ErrLoginUser}
 	us := &UserService{
 		Repo: repo,
