@@ -8,9 +8,9 @@ option go_package = "./proto;proto";
 
 service AuthService {
   rpc Login(LoginRequest) returns (TokenResponse);
-  rpc Register(RegisterRequest) returns (Status);
+  rpc Register(RegisterRequest) returns (RegisterResponse);
   rpc Refresh(RefreshRequest) returns (TokenResponse);
-  rpc Revoke(RevokeRequest) returns (Status);
+  rpc Revoke(RevokeRequest) returns (RevokeResponse);
 }
 
 message LoginRequest {
@@ -41,6 +41,10 @@ message RevokeRequest {
   string user_id = 2;
 }
 
-message Status {
-  string status = 1;
+message RegisterResponse {
+  string user_id = 1;
+}
+
+message RevokeResponse {
+  string error = 1;
 }

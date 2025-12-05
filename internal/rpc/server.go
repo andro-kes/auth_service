@@ -63,13 +63,13 @@ func (as *AuthServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Toke
 	}, nil
 }
 
-func (as *AuthServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Status, error) {
-	err := as.UserService.Register(ctx, req.Username, req.Password)
+func (as *AuthServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+	userId, err := as.UserService.Register(ctx, req.Username, req.Password)
 	if err != nil {
-		return &pb.Status{Status: "Failed"}, err
+		return &pb.RegisterResponse{UserId: ""}, err
 	}
 
-	return &pb.Status{Status: "Success"}, nil
+	return &pb.RegisterResponse{UserId: userId}, nil
 }
 
 func (as *AuthServer) Refresh(ctx context.Context, req *pb.RefreshRequest) (resp *pb.TokenResponse, err error) {
@@ -89,10 +89,9 @@ func (as *AuthServer) Refresh(ctx context.Context, req *pb.RefreshRequest) (resp
 	return resp, nil
 }
 
-// Revoke invalidates the provided refresh token, revoking access for the associated user.
-func (as *AuthServer) Revoke(ctx context.Context, req *pb.RevokeRequest) (*pb.Status, error) {
+func (as *AuthServer) Revoke(ctx context.Context, req *pb.RevokeRequest) (*pb.RevokeResponse, error) {
 	if err := as.TokenService.RevokeRefreshByRaw(ctx, req.RefreshToken); err != nil {
-		return &pb.Status{Status: "Fail"}, err
+		return &pb.RevokeResponse{Error: "failed to revoke token"}, err
 	}
-	return &pb.Status{Status: "Success"}, nil
+	return &pb.RevokeResponse{Error: "Token revoked"}, nil
 }

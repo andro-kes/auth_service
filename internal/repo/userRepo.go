@@ -12,7 +12,7 @@ import (
 )
 
 type UserRepo interface {
-	Create(ctx context.Context, q db.Querier, user *models.User) error
+	Create(ctx context.Context, q db.Querier, user *models.User) (string, error)
 	FindByUsername(ctx context.Context, username string) (*models.User, error)
 }
 
@@ -26,22 +26,24 @@ func NewUserRepo(ctx context.Context, pool *pgxpool.Pool) UserRepo {
 	}
 }
 
-func (ur *userRepo) Create(ctx context.Context, q db.Querier, user *models.User) error {
+func (ur *userRepo) Create(ctx context.Context, q db.Querier, user *models.User) (string, error) {
 	ib := db.NewInsertBuilder(ctx, ur.pool).
 		Into("users").
 		Columns("id", "username", "password").
-		Values(user.ID, user.Username, user.Password)
+		Values(user.ID, user.Username, user.Password).
+		Returning("id")
 
 	sql, args, err := ib.Build()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	if _, err := q.Exec(ctx, sql, args...); err != nil {
-		return err
+	var userId string
+	if err := q.QueryRow(ctx, sql, args...).Scan(&userId); err != nil {
+		return "", err
 	}
 
-	return nil
+	return userId, nil
 }
 
 func (ur *userRepo) FindByUsername(ctx context.Context, username string) (*models.User, error) {

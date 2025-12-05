@@ -26,11 +26,11 @@ func NewUserService(ctx context.Context, pool *pgxpool.Pool) *UserService {
 	}
 }
 
-func (us *UserService) Register(ctx context.Context, username, password string) error {
+func (us *UserService) Register(ctx context.Context, username, password string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
 	if err != nil {
 		logger.Logger().Error("Failed to hash password", zap.Error(err))
-		return autherr.ErrHashPassword
+		return "", autherr.ErrHashPassword
 	}
 	
 	user := &models.User{
@@ -39,8 +39,10 @@ func (us *UserService) Register(ctx context.Context, username, password string) 
 		Password: string(hash),
 	}
 
-	return us.Tx.RunInTx(ctx, func(ctx context.Context, q db.Querier) error {
-		if err := us.Repo.Create(ctx, q, user); err != nil {
+	var userId string
+	err = us.Tx.RunInTx(ctx, func(ctx context.Context, q db.Querier) error {
+		userId, err = us.Repo.Create(ctx, q, user)
+		if err != nil {
 			logger.Logger().Error("Failed to create user", zap.Error(err))
 			return autherr.ErrCreateUser
 		}
@@ -48,6 +50,11 @@ func (us *UserService) Register(ctx context.Context, username, password string) 
 		logger.Logger().Info("User created", zap.String("user_id", user.ID))
 		return nil
 	})
+	if err != nil {
+		return "", err
+	}
+
+	return userId, nil
 }
 
 func (us *UserService) Login(ctx context.Context, username, password string) (*models.User, error) {

@@ -28,12 +28,12 @@ type testUserRepo struct {
 	notFoundError error
 }
 
-func (tur *testUserRepo) Create(ctx context.Context, q db.Querier, user *models.User) error {
+func (tur *testUserRepo) Create(ctx context.Context, q db.Querier, user *models.User) (string, error) {
 	if tur.createError != nil {
-		return tur.createError
+		return "", tur.createError
 	}
 	tur.newUser = user
-	return nil
+	return user.ID, nil
 }
 
 func (tur *testUserRepo) FindByUsername(ctx context.Context, username string) (*models.User, error) {
@@ -62,9 +62,12 @@ func TestRegister(t *testing.T) {
 		Tx: &fakeTx{},
 	}
 
-	err := us.Register(ctx, "test_user", "test_password")
+	userId, err := us.Register(ctx, "test_user", "test_password")
 	if err != nil {
 		t.Fatalf("Failed to register user: %s", err.Error())
+	}
+	if userId == "" {
+		t.Fatalf("userId is empty")
 	}
 	if repo.newUser == nil {
 		t.Fatalf("Failed to create new user: %s", err.Error())
@@ -88,7 +91,7 @@ func TestRegisterCreateFails(t *testing.T) {
 		Tx:   &fakeTx{},
 	}
 
-	err := us.Register(ctx, "bob", "pwd")
+	_, err := us.Register(ctx, "bob", "pwd")
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
