@@ -23,8 +23,8 @@ func (ft *fakeTx) RunInTx(ctx context.Context, fn func(ctx context.Context, q db
 }
 
 type testUserRepo struct {
-	newUser *models.User
-	createError error
+	newUser       *models.User
+	createError   error
 	notFoundError error
 }
 
@@ -45,9 +45,9 @@ func (tur *testUserRepo) FindByUsername(ctx context.Context, username string) (*
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &models.User{
-		ID: uuid.New().String(),
+		ID:       uuid.New().String(),
 		Username: username,
 		Password: string(hash),
 	}, nil
@@ -59,7 +59,7 @@ func TestRegister(t *testing.T) {
 
 	us := &UserService{
 		Repo: repo,
-		Tx: &fakeTx{},
+		Tx:   &fakeTx{},
 	}
 
 	userId, err := us.Register(ctx, "test_user", "test_password")
@@ -95,7 +95,7 @@ func TestRegisterCreateFails(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error, got nil")
 	}
-	
+
 	if err != autherr.ErrCreateUser {
 		t.Fatalf("expected autherr.ErrCreateUser, got %v", err)
 	}

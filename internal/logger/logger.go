@@ -46,8 +46,8 @@ type Config struct {
 
 // package-level logger instances (singletons)
 var (
-	zapLogger  *zap.Logger
-	sugar      *zap.SugaredLogger
+	zapLogger   *zap.Logger
+	sugar       *zap.SugaredLogger
 	initialized = false
 )
 
@@ -173,8 +173,8 @@ func Init(cfg Config) error {
 
 	// Options
 	opts := []zap.Option{
-		zap.AddCaller(),             // include caller info
-		zap.AddCallerSkip(1),        // adjust for wrapper functions
+		zap.AddCaller(),      // include caller info
+		zap.AddCallerSkip(1), // adjust for wrapper functions
 		zap.AddStacktrace(zapcore.ErrorLevel),
 	}
 

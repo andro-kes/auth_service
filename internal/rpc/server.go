@@ -16,15 +16,15 @@ import (
 
 type AuthServer struct {
 	pb.UnimplementedAuthServiceServer
-	UserService *services.UserService
+	UserService  *services.UserService
 	TokenService *services.TokenService
 }
 
 func NewAuthServer(ctx context.Context, pool *pgxpool.Pool) (*AuthServer, error) {
 	tsvc, err := services.NewTokenService(
 		os.Getenv("SECRET_KEY"),
-		time.Minute * 5,
-		time.Hour * 24 * 7,
+		time.Minute*5,
+		time.Hour*24*7,
 	)
 	if err != nil {
 		// return the actual error so callers see the real cause
@@ -32,7 +32,7 @@ func NewAuthServer(ctx context.Context, pool *pgxpool.Pool) (*AuthServer, error)
 	}
 
 	return &AuthServer{
-		UserService: services.NewUserService(ctx, pool),
+		UserService:  services.NewUserService(ctx, pool),
 		TokenService: tsvc,
 	}, nil
 }

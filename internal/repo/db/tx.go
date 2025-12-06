@@ -45,6 +45,6 @@ func (t *tx) RunInTx(ctx context.Context, fn func(ctx context.Context, q Querier
 	if err := px.Commit(ctx); err != nil {
 		return err
 	}
-	
+
 	return nil
 }

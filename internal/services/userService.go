@@ -16,13 +16,13 @@ import (
 
 type UserService struct {
 	Repo repo.UserRepo
-	Tx db.Tx
+	Tx   db.Tx
 }
 
 func NewUserService(ctx context.Context, pool *pgxpool.Pool) *UserService {
 	return &UserService{
 		Repo: repo.NewUserRepo(ctx, pool),
-		Tx: db.NewTx(pool),
+		Tx:   db.NewTx(pool),
 	}
 }
 
@@ -32,9 +32,9 @@ func (us *UserService) Register(ctx context.Context, username, password string) 
 		logger.Logger().Error("Failed to hash password", zap.Error(err))
 		return "", autherr.ErrHashPassword
 	}
-	
+
 	user := &models.User{
-		ID: uuid.New().String(),
+		ID:       uuid.New().String(),
 		Username: username,
 		Password: string(hash),
 	}
